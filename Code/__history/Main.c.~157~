@@ -1,0 +1,978 @@
+#define LCD_RS_PIN PIN_D0
+#define LCD_RW_PIN PIN_D1
+#define LCD_ENABLE_PIN PIN_D2
+#define LCD_DATA4 PIN_D7
+#define LCD_DATA5 PIN_D6
+#define LCD_DATA6 PIN_D5
+#define LCD_DATA7 PIN_D4
+
+// dinh nghia ten cac phim bam
+#define KEY0 0
+#define KEY1 1
+#define KEY2 2
+#define KEY3 3
+#define KEY4 4
+#define KEY5 5
+#define KEY6 6
+#define KEY7 7
+#define KEY8 8
+#define KEY9 9
+#define KEYSTAR 10
+#define KEYHASH 11
+#define NOKEY 12
+
+#define KC1 PIN_B2
+#define KC2 PIN_B1
+#define KC3 PIN_B0
+#define KR1 PIN_B4
+#define KR2 PIN_B5
+#define KR3 PIN_B6
+#define KR4 PIN_B3
+
+// khai bao dinh nghia cac trang thai mach
+#define STAMAIN 0
+#define STAINPUTPASS 1
+#define STAUNLOCK 2
+#define STACHANGEPASS1 3
+#define STACHANGEPASS2 4
+#define STAMENU1 5
+#define STAMENU2 6
+#define STAMENU3 7
+#define STAINPUTADMIN 8
+#define STAINPUTRFIDADMIN 9
+#define STAADDRFID1 10
+#define STADELETERFID1 11
+#define STAADDRFID2 12
+#define STADELETERFID2 13
+
+#include <main.h>
+#include <lcd.c>
+#use rs232(UART1,baud=9600,parity=N,bits=8,stream=UART_PORT,errors)
+
+int8 CurrentState=STAMAIN; // Bien luu trang thai cua mach hien tai
+int8 NextState=STAMAIN; // Bien luu trang thai cua mach tiep theo
+
+
+int8 CurrentKey; //bien luu gia tri phim bam
+int8 CurrentCodeIndex; //vi tri so hien tai
+int8 CurrentPass[6]; // bien luu ma hien tai
+int8 AdminPass[6]={1,2,3,4,5,6};
+int8 SubPass1[6]={1,1,1,1,1,1};
+int8 SubPass2[6]={2,2,2,2,2,2};
+
+char RFIDAdmin[10]={'a','b','c','d','e','f','g','h','i','k'};
+char RFID1[10];
+char RFID2[10];
+
+
+
+char UARTBuffer[70];
+int8 ByteCount=0;
+int8 RFIDResult=0; //=0 khong co the, =1 the hop le admin , =2 the  hop le the phu,=3 the khong hop le
+
+
+void WriteSubPass1()
+{
+    write_eeprom(0, SubPass1[0]);
+    write_eeprom(1, SubPass1[1]);
+    write_eeprom(2, SubPass1[2]);
+    write_eeprom(3, SubPass1[3]);
+    write_eeprom(4, SubPass1[4]);
+    write_eeprom(5, SubPass1[5]);
+}
+
+void WriteSubPass2()
+{
+    write_eeprom(6, SubPass2[0]);
+    write_eeprom(7, SubPass2[1]);
+    write_eeprom(8, SubPass2[2]);
+    write_eeprom(9, SubPass2[3]);
+    write_eeprom(10, SubPass2[4]);
+    write_eeprom(11, SubPass2[5]);
+}
+
+void WriteRFID1()
+{
+ write_eeprom(15, RFID1[0]);
+ write_eeprom(16, RFID1[1]);
+ write_eeprom(17, RFID1[2]);
+ write_eeprom(18, RFID1[3]);
+ write_eeprom(19, RFID1[4]);
+ write_eeprom(20, RFID1[5]);
+ write_eeprom(21, RFID1[6]);
+ write_eeprom(22, RFID1[7]);
+ write_eeprom(23, RFID1[8]);
+ write_eeprom(24, RFID1[9]);
+
+}
+
+void WriteRFID2()
+{
+ write_eeprom(25, RFID2[0]);
+ write_eeprom(26, RFID2[1]);
+ write_eeprom(27, RFID2[2]);
+ write_eeprom(28, RFID2[3]);
+ write_eeprom(29, RFID2[4]);
+ write_eeprom(30, RFID2[5]);
+ write_eeprom(31, RFID2[6]);
+ write_eeprom(32, RFID2[7]);
+ write_eeprom(33, RFID2[8]);
+ write_eeprom(34, RFID2[9]);
+
+}
+
+void ReadRFID()
+{
+  RFID1[0]=read_eeprom(15);
+  RFID1[1]=read_eeprom(16);
+  RFID1[2]=read_eeprom(17);
+  RFID1[3]=read_eeprom(18);
+  RFID1[4]=read_eeprom(19);
+  RFID1[5]=read_eeprom(20);
+  RFID1[6]=read_eeprom(21);
+  RFID1[7]=read_eeprom(22);
+  RFID1[8]=read_eeprom(23);
+  RFID1[9]=read_eeprom(24);
+  
+  RFID2[0]=read_eeprom(25);
+  RFID2[1]=read_eeprom(26);
+  RFID2[2]=read_eeprom(27);
+  RFID2[3]=read_eeprom(28);
+  RFID2[4]=read_eeprom(29);
+  RFID2[5]=read_eeprom(30);
+  RFID2[6]=read_eeprom(31);
+  RFID2[7]=read_eeprom(32);
+  RFID2[8]=read_eeprom(33);
+  RFID2[9]=read_eeprom(34);
+
+}
+
+
+void ReadPassfromEEPROM()
+{
+
+ int8 EEPROMData;
+ // doc pass phu 1
+ EEPROMData=read_eeprom(0);
+ if(EEPROMData==0xFF) // ROM trang khong co du lieu
+ {
+   WriteSubPass1();// ghi gia tri mac dinh vao eeprom
+ }
+ else // neu rom co du lieu thi doc  ma mat ma luu vao mang
+ {
+
+    SubPass1[0]=read_eeprom(0);
+    SubPass1[1]=read_eeprom(1);
+    SubPass1[2]=read_eeprom(2);
+    SubPass1[3]=read_eeprom(3);
+    SubPass1[4]=read_eeprom(4);
+    SubPass1[5]=read_eeprom(5);
+ }
+ // doc pass phu 2
+ EEPROMData=read_eeprom(6);
+ if(EEPROMData==0xFF) // ROM trang khong co du lieu
+ {
+  WriteSubPass2();
+ }
+ else // neu rom co du lieu thi doc  ma mat ma luu vao mang
+ {
+
+    SubPass2[0]=read_eeprom(6);
+    SubPass2[1]=read_eeprom(7);
+    SubPass2[2]=read_eeprom(8);
+    SubPass2[3]=read_eeprom(9);
+    SubPass2[4]=read_eeprom(10);
+    SubPass2[5]=read_eeprom(11);
+ }
+ 
+ 
+}
+
+
+
+int8 ScanKeyboard(void)
+{
+ output_low(KC1);
+ if(!input(KR1)) 
+ { 
+  while(!input(KR1));
+  delay_ms(10);
+  return KEY1;
+ }
+ 
+ if(!input(KR2)) 
+  { 
+   while(!input(KR2));
+   delay_ms(10);
+   return KEY4;
+  }
+  
+ if(!input(KR3))
+ {
+  while(!input(KR3));
+  delay_ms(10);
+  return KEY7;
+ }
+ 
+ if(!input(KR4)) 
+  {
+  while(!input(KR4));
+  delay_ms(10);
+  return KEYSTAR;
+ }
+ 
+ output_high(KC1);
+ output_low(KC2);
+ 
+ if(!input(KR1)) 
+ { 
+  while(!input(KR1));
+  delay_ms(10);
+  return KEY2;
+ }
+ 
+ if(!input(KR2)) 
+  { 
+   while(!input(KR2));
+   delay_ms(10);
+   return KEY5;
+  }
+  
+ if(!input(KR3))
+ {
+  while(!input(KR3));
+  delay_ms(10);
+  return KEY8;
+ }
+ 
+ if(!input(KR4)) 
+  {
+  while(!input(KR4));
+  delay_ms(10);
+  return KEY0;
+ }
+ 
+ output_high(KC2);
+ output_low(KC3);
+ 
+ if(!input(KR1)) 
+ { 
+  while(!input(KR1));
+  delay_ms(10);
+  return KEY3;
+ }
+ 
+ if(!input(KR2)) 
+  { 
+   while(!input(KR2));
+   delay_ms(10);
+   return KEY6;
+  }
+  
+ if(!input(KR3))
+ {
+  while(!input(KR3));
+  delay_ms(10);
+  return KEY9;
+ }
+ 
+ if(!input(KR4)) 
+  {
+  while(!input(KR4));
+  delay_ms(10);
+  return KEYHASH;
+ }
+ 
+ output_high(KC3);
+ return NOKEY;
+
+}
+
+void OnBuzzer()
+{
+    output_high(PIN_C2);// Mo Loa
+}
+
+void OffBuzzer()
+{
+    output_Low(PIN_C2);// tat Loa
+}
+
+
+void Beep(int BeepCount) // phattieng pip theo so lan
+{
+ int i;
+ for(i=0;i<BeepCount;i++)
+ {
+    OnBuzzer();
+    delay_ms(200);
+    OffBuzzer();  
+    delay_ms(200);
+ }
+}
+
+void OnLedGreen()
+{
+ output_high(PIN_C1);
+}
+
+void OffLedGreen()
+{
+ output_Low(PIN_C1);
+}
+
+void OnLedRed()
+{
+ output_high(PIN_C0);
+}
+
+void OffLedRed()
+{
+ output_Low(PIN_C0);
+}
+
+
+void LockGate()//bao hieu sai
+{
+
+   OffLedGreen();
+   OnLedRed();
+}
+
+void UnLockGate() // bao hieu dung
+{
+
+ OnLedGreen();
+ OffLedRed();
+}
+
+int8 CheckPass() // ham kiem tra mat ma, ket qua tra ve 0 - mat ma sai, tra ve 1 - pass admin, tra ve 2 - pass phu
+{
+  int8 PassResult=1; // gia su pass la dung
+  int i;
+  for(i=0;i<6;i++) // kiem tra pass add min
+  {
+   if(CurrentPass[i]!=AdminPass[i]) // neu phat hien 1 mat ma sai thi thoat vong lam
+   {
+     PassResult=0;
+     break;
+   }
+  }
+  
+  
+  if(PassResult==1) return 1;// neu pass tren dung thi tra ve ket qua admin thoat ham
+  
+  PassResult=1; // gia su pass la dung
+  for(i=0;i<6;i++) // kiem tra pass phu 1
+  {
+   if(CurrentPass[i]!=SubPass1[i]) // neu phat hien 1 mat ma sai thi thoat vong lam
+   {
+     PassResult=0;
+     break;
+   }
+  }
+  
+  if(PassResult==1) return 2;// neu pass tren dung thi tra ve ket qua pass phu thoat ham
+  
+  PassResult=1; // gia su pass la dung
+  for(i=0;i<6;i++) // kiem tra pass phu 2
+  {
+   if(CurrentPass[i]!=SubPass2[i]) // neu phat hien 1 mat ma sai thi thoat vong lam
+   {
+     PassResult=0;
+     break;
+   }
+  }
+  
+  if(PassResult==1) return 2;// neu pass tren dung thi tra ve ket qua pass phu thoat ham
+  else return 0; // nguoc lai tat ca pass deu sai thi tra ve 0
+  
+  
+}
+
+void ResetInput() // ham reset du lieu dang nhap
+{
+  CurrentCodeIndex=0;
+  CurrentPass[0]=0xFF;
+  CurrentPass[1]=0xFF;
+  CurrentPass[2]=0xFF;
+  CurrentPass[3]=0xFF;
+  CurrentPass[4]=0xFF;
+  CurrentPass[5]=0xFF;
+}
+
+void DisplayMain()
+{
+   lcd_putc("\f");
+   lcd_putc("KHOA MAT MA-RFID");  
+   lcd_gotoxy(1, 2);
+   lcd_putc(" BAM # vao Menu ");
+}
+
+void DisplayInputPass()
+{
+   lcd_putc("\f");
+   lcd_putc("  NHAP MAT MA");  
+   lcd_gotoxy(1, 2);
+
+}
+
+void DisplayInputPassAdmin()
+{
+   lcd_putc("\f");
+   lcd_putc("NHAP PASS ADMIN");  
+   lcd_gotoxy(1, 2);
+
+}
+
+
+void DisplayMenu1()
+{
+   lcd_putc("\f");
+   lcd_putc("1.DOI PASS PHU 1");  
+   lcd_gotoxy(1, 2);
+   lcd_putc("2.DOI PASS PHU 2"); 
+}
+
+void DisplayMenu2()
+{
+   lcd_putc("\f");
+   lcd_putc("1.THEM THE RFID1");  
+   lcd_gotoxy(1, 2);
+   lcd_putc("2.XOA THE RFID1"); 
+}
+void DisplayMenu3()
+{
+   lcd_putc("\f");
+   lcd_putc("1.THEM THE RFID2");  
+   lcd_gotoxy(1, 2);
+   lcd_putc("2.XOA THE RFID2"); 
+}
+
+
+void DisplayChangePass1()
+{
+   lcd_putc("\f");
+   lcd_putc("NHAP PASS PHU 1");  
+   lcd_gotoxy(1, 2);
+}
+
+void DisplayChangePass2()
+{
+   lcd_putc("\f");
+   lcd_putc("NHAP PASS PHU 2");  
+   lcd_gotoxy(1, 2);
+}
+
+
+void DisplayInputRFIDAdmin()
+{
+   lcd_putc("\f");
+   lcd_putc(" CHAM THE ADMIN");  
+   lcd_gotoxy(1, 2);
+}
+
+
+
+
+void DisplayAddRFID()
+{
+   lcd_putc("\f");
+   lcd_putc("CHAM THE PHU MOI");  
+   lcd_gotoxy(1, 2);
+}
+
+void ClearUARTBuffer()
+{
+   ByteCount=0;
+}
+
+
+void ProcessRFID()
+{
+  int8 i;
+  
+  RFIDResult=1; // gia su la the admin
+  for(i=1;i<11;i++)
+  {
+    if(UARTBuffer[i]!=RFIDAdmin[i-1])  // neu kiem tra khong dung 1 ky tu thi set the khong phai admin
+    {
+      RFIDResult=3; // the khong hop le
+    }
+  }
+  
+  if(RFIDResult==1) return; // neu sau vong lap khong phat hien ky ky tu sai thi la the admin thoat vong lap
+  
+  // neu khong phai admin thi check tiep the phu 1
+  
+  RFIDResult=2; // gia su la the phu
+  for(i=1;i<11;i++)
+  {
+    if(UARTBuffer[i]!=RFID1[i-1])  // neu kiem tra khong dung 1 ky tu thi set the khong phai la the phu 1
+    {
+      RFIDResult=3; // the khong hop le
+    }
+  }
+  
+  if(RFIDResult==2) return; // neu sau vong lap khong phat hien ky ky tu sai thi la the phu 1 thoat vong lap
+  
+  
+  // neu khong phai the phu 1 thi check tiep the phu 2
+  
+  RFIDResult=2; // gia su la the phu
+  for(i=1;i<11;i++)
+  {
+    if(UARTBuffer[i]!=RFID2[i-1])  // neu kiem tra khong dung 1 ky tu thi set the khong phai la the phu 2
+    {
+      RFIDResult=3; // the khong hop le
+    }
+  }
+  
+  if(RFIDResult==2) return; // neu sau vong lap khong phat hien ky ky tu sai thi la the phu 2 thoat vong lap
+  
+  // nguoc lai cung khong phai la the phu 2 thi tra ve the khong hop le
+  RFIDResult=3;
+  delay_ms(100);
+  ClearUARTBuffer();
+  return;
+ 
+}
+
+
+
+
+
+#INT_RDA
+void  RDA_isr(void) 
+{
+  char c = getc();
+  UARTBuffer[ByteCount]=c;
+  ByteCount++;
+   if(ByteCount==13)
+    {
+      ByteCount=0;
+      ProcessRFID();
+    }
+    else if(ByteCount>69)
+    {
+      ByteCount=0;
+    }
+}
+
+
+void main()
+{
+
+   int8 CheckPassResult;
+   
+   SET_TRIS_D(0x00);
+   SET_TRIS_C(0x80); // uart 
+   Set_tris_B(0xF8);// cai dat port B 0-2 output, 3-7 input
+   port_B_pullups(0xFF);   
+   output_high(KC1);// dua dua cac chan cot phim len cao
+   output_high(KC2);
+   output_high(KC3);
+   enable_interrupts(INT_RDA);
+   enable_interrupts(GLOBAL);
+   
+   lcd_init(); // khoi tao LCD
+   DisplayMain();
+   ResetInput();                   
+   OffBuzzer();
+   LockGate();
+   ReadPassfromEEPROM();
+   ReadRFID();
+   CurrentState=STAMAIN;
+   RFIDResult=0;
+   
+   
+   while(true)
+   {
+      
+      // phan kiem tra the tu
+      if(RFIDResult!=0) // neu co the tu duoc cham thi UART tu ngat và RFIDResult se cap nhat ket qua
+      {
+       if(CurrentState==STAMAIN) // neu dang o che do cho  co the cham vao
+       {
+           if(RFIDResult==1||RFIDResult==2) // co the admin hoac the phu cham vao thi mo khoa
+           {
+              lcd_gotoxy(1, 2);
+              lcd_putc("  XIN MOI VAO!  ");
+              UnLockGate();
+              Beep(1); // beep loa 1 tieng
+              delay_ms(1000);
+              CurrentState=STAUNLOCK; 
+           }
+           else
+           {
+              lcd_gotoxy(1, 2);
+              lcd_putc("THE KHONG HOP LE");
+              Beep(3); // beep loa 3 tieng
+              delay_ms(1000);
+              DisplayMain();
+           }
+       }
+       else if(CurrentState==STAINPUTRFIDADMIN)
+       {
+         if(RFIDResult==1) // neu nhan the admin
+         {
+           Beep(1); // beep loa 1 tieng
+           if(NextState==STAADDRFID1)
+           {
+             CurrentState=STAADDRFID1;
+             DisplayAddRFID();
+           }
+           else if(NextState==STADELETERFID1)
+           {
+             RFID1[0]=0xFF;
+             RFID1[1]=0xFF;
+             RFID1[2]=0xFF;
+             RFID1[3]=0xFF;
+             RFID1[4]=0xFF;
+             RFID1[5]=0xFF;
+             RFID1[6]=0xFF;
+             RFID1[7]=0xFF;
+             RFID1[8]=0xFF;
+             RFID1[9]=0xFF;
+             lcd_gotoxy(1, 2);
+             lcd_putc("DA XOA THE PHU 1");
+             delay_ms(1000);
+             CurrentState=STAMAIN;
+             DisplayMain();
+           }
+           else if(NextState==STAADDRFID2)
+           {
+             CurrentState=STAADDRFID2;
+             DisplayAddRFID();
+           }
+           else if(NextState==STADELETERFID2)
+           {
+             RFID2[0]=0xFF;
+             RFID2[1]=0xFF;
+             RFID2[2]=0xFF;
+             RFID2[3]=0xFF;
+             RFID2[4]=0xFF;
+             RFID2[5]=0xFF;
+             RFID2[6]=0xFF;
+             RFID2[7]=0xFF;
+             RFID2[8]=0xFF;
+             RFID2[9]=0xFF;
+             lcd_gotoxy(1, 2);
+             lcd_putc("DA XOA THE PHU 2");
+             delay_ms(1000);
+             CurrentState=STAMAIN;
+             DisplayMain();
+           }
+           
+         }
+         else
+         {
+              lcd_gotoxy(1, 2);
+              lcd_putc("THE KHONG HOP LE");
+              Beep(3); // beep loa 3 tieng
+              delay_ms(1000);
+              lcd_gotoxy(1, 2);
+              lcd_putc("                ");
+         }
+       
+       }
+       
+       else if(CurrentState==STAADDRFID1) // dang them the 1
+       {
+          lcd_gotoxy(1, 2);
+          lcd_putc("DA THEM THE PHU1");
+          Beep(1); // beep loa 1 tieng
+          RFID1[0]=UARTBuffer[1];
+          RFID1[1]=UARTBuffer[2];
+          RFID1[2]=UARTBuffer[3];
+          RFID1[3]=UARTBuffer[4];
+          RFID1[4]=UARTBuffer[5];
+          RFID1[5]=UARTBuffer[6];
+          RFID1[6]=UARTBuffer[7];
+          RFID1[7]=UARTBuffer[8];
+          RFID1[8]=UARTBuffer[9];
+          RFID1[9]=UARTBuffer[10];
+          WriteRFID1();
+          delay_ms(1000);
+          CurrentState=STAMAIN;
+          DisplayMain();
+       }
+        else if(CurrentState==STAADDRFID2) // dang them the 1
+       {
+          lcd_gotoxy(1, 2);
+          lcd_putc("DA THEM THE PHU2");
+          Beep(1); // beep loa 1 tieng
+          RFID2[0]=UARTBuffer[1];
+          RFID2[1]=UARTBuffer[2];
+          RFID2[2]=UARTBuffer[3];
+          RFID2[3]=UARTBuffer[4];
+          RFID2[4]=UARTBuffer[5];
+          RFID2[5]=UARTBuffer[6];
+          RFID2[6]=UARTBuffer[7];
+          RFID2[7]=UARTBuffer[8];
+          RFID2[8]=UARTBuffer[9];
+          RFID2[9]=UARTBuffer[10];
+          WriteRFID2();
+          delay_ms(1000);
+          CurrentState=STAMAIN;
+          DisplayMain();
+       }
+       
+       RFIDResult=0; // sau khi xu ly thong tin RFID thi reset bien de cho the tiep theo
+      }
+      
+      
+      
+      // phan kim tra phim bam va mat ma
+      CurrentKey=Scankeyboard(); // doc ban phim
+      if(CurrentKey!=NOKEY) // neu phim tra ve khac NOKEY ( tuc la co bam phim)
+      {
+        switch(CurrentKey) // kiem tra xem la phim gi
+        {
+            case KEY0: // Neu la ca phim so
+            case KEY1:
+            case KEY2:
+            case KEY3:
+            case KEY4:
+            case KEY5:
+            case KEY6:
+            case KEY7:
+            case KEY8:
+            case KEY9:
+            {
+               if(CurrentState==STAMAIN) // neu dang o che do cho hoac che do nhap pass thi cho phep nhap
+               {
+                 
+                 CurrentState=STAINPUTPASS; // cai trang tahi hien tai la nhap pass
+                 NextState=STAUNLOCK;
+                 DisplayInputPass();
+              
+               }
+               else if(CurrentState==STAINPUTPASS||CurrentState==STAINPUTADMIN||CurrentState==STACHANGEPASS1||CurrentState==STACHANGEPASS2)
+               {
+                 if(CurrentCodeIndex<6) //neu nhap chua du 6 ky tu
+                 {
+                    CurrentPass[CurrentCodeIndex]=CurrentKey; // luu so vua bam vao mang
+                    lcd_putc('*'); // hien thi dau sao cho phim da bam
+                    CurrentCodeIndex++;// chuyen sang vi tri tiep theo
+                 }
+               }
+               else if(CurrentState==STAMENU1&&CurrentKey==KEY1)
+               {
+                   DisplayInputPassAdmin();
+                   CurrentState=STAINPUTADMIN;
+                   NextState=STACHANGEPASS1;
+               }
+                else if(CurrentState==STAMENU1&&CurrentKey==KEY2)
+               {
+                   DisplayInputPassAdmin();
+                   CurrentState=STAINPUTADMIN;
+                   NextState=STACHANGEPASS2;
+               }
+               else if(CurrentState==STAMENU2&&CurrentKey==KEY1)
+               {
+                   DisplayInputRFIDAdmin();
+                   CurrentState=STAINPUTRFIDADMIN;
+                   NextState=STAADDRFID1;
+               }
+                else if(CurrentState==STAMENU2&&CurrentKey==KEY2)
+               {
+                   DisplayInputRFIDAdmin();
+                   CurrentState=STAINPUTRFIDADMIN;
+                   NextState=STADELETERFID1;
+               }
+               else if(CurrentState==STAMENU3&&CurrentKey==KEY1)
+               {
+                   DisplayInputRFIDAdmin();
+                   CurrentState=STAINPUTRFIDADMIN;
+                   NextState=STAADDRFID2;
+               }
+                else if(CurrentState==STAMENU3&&CurrentKey==KEY2)
+               {
+                   DisplayInputRFIDAdmin();
+                   CurrentState=STAINPUTRFIDADMIN;
+                   NextState=STADELETERFID2;
+               }
+               break;
+            }
+            
+            case KEYHASH:// Neu bam phim thang
+            {
+              if(CurrentState==STAINPUTPASS&&NextState==STAUNLOCK) // neu dang nhap pass de mo
+              {
+                CheckPassResult=CheckPass(); // kiem tra mat ma nhap vao
+                if(CheckPassResult==0) //neu sai pass thi thong bao
+                {
+                   lcd_gotoxy(1, 2);
+                   lcd_putc("   SAI MAT MA!  ");
+                   Beep(3); // beep loa 3 tieng
+                   delay_ms(1000);
+                   ResetInput();  // xoa du lieu da nhap
+                   DisplayInputPass();
+                }
+                else
+                {
+                   lcd_gotoxy(1, 2);
+                   lcd_putc("  XIN MOI VAO!  ");
+                   UnLockGate();
+                   Beep(1); // beep loa 1 tieng
+                   delay_ms(1000);
+                   ResetInput();  // xoa du lieu da nhap
+                   CurrentState=STAUNLOCK; 
+                }
+              }
+              else if(CurrentState==STAINPUTADMIN&&NextState==STACHANGEPASS1)
+              {
+                   CheckPassResult=CheckPass(); // kiem tra mat ma nhap vao
+                   if(CheckPassResult==1) //neu nhap dung pass addmin
+                   {
+                      DisplayChangePass1();
+                      Beep(1); // beep loa 1 tieng
+                      ResetInput();  // xoa du lieu da nhap
+                      CurrentState=STACHANGEPASS1; // tro ve man hinh change pass
+                   }
+                   else
+                   {
+            
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("   SAI MAT MA!  ");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayInputPassAdmin();
+                   }  
+              
+              }
+              else if(CurrentState==STACHANGEPASS1)
+              {
+                 if(CurrentCodeIndex<6) //neu nhap chua du 6 ky tu
+                 {
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("CHUA DU 6 KY TU!");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayChangePass1();
+                 }
+                 else
+                 {
+                     SubPass1[0]=CurrentPass[0];
+                     SubPass1[1]=CurrentPass[1];
+                     SubPass1[2]=CurrentPass[2];
+                     SubPass1[3]=CurrentPass[3];
+                     SubPass1[4]=CurrentPass[4];
+                     SubPass1[5]=CurrentPass[5];
+                     WriteSubPass1();
+                     lcd_gotoxy(1, 2);
+                     lcd_putc(" DA LUU MA MOI! ");
+                     Beep(2);
+                     delay_ms(1000);
+                     CurrentState=STAMAIN;
+                     ResetInput();  // xoa du lieu da nhap
+                     DisplayMain();
+                 }
+              }
+              else if(CurrentState==STAINPUTADMIN&&NextState==STACHANGEPASS2)
+              {
+                   CheckPassResult=CheckPass(); // kiem tra mat ma nhap vao
+                   if(CheckPassResult==1) //neu nhap dung pass addmin
+                   {
+                      DisplayChangePass2();
+                      Beep(1); // beep loa 1 tieng
+                      ResetInput();  // xoa du lieu da nhap
+                      CurrentState=STACHANGEPASS2; // tro ve man hinh change pass
+                   }
+                   else
+                   {
+            
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("   SAI MAT MA!  ");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayInputPassAdmin();
+                   }  
+              
+              }
+              else if(CurrentState==STACHANGEPASS2)
+              {
+                 if(CurrentCodeIndex<6) //neu nhap chua du 6 ky tu
+                 {
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("CHUA DU 6 KY TU!");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayChangePass2();
+                 }
+                 else
+                 {
+                     SubPass2[0]=CurrentPass[0];
+                     SubPass2[1]=CurrentPass[1];
+                     SubPass2[2]=CurrentPass[2];
+                     SubPass2[3]=CurrentPass[3];
+                     SubPass2[4]=CurrentPass[4];
+                     SubPass2[5]=CurrentPass[5];
+                     WriteSubPass2();
+                     lcd_gotoxy(1, 2);
+                     lcd_putc(" DA LUU MA MOI! ");
+                     Beep(2);
+                     delay_ms(1000);
+                     CurrentState=STAMAIN;
+                     ResetInput();  // xoa du lieu da nhap
+                     DisplayMain();
+                 }
+              }
+              else if(CurrentState==STAMAIN)
+              {
+                CurrentState=STAMENU1;
+                DisplayMenu1();
+              }
+              else if(CurrentState==STAMENU1)
+              {
+                CurrentState=STAMENU2;
+                DisplayMenu2();
+              }
+              else if(CurrentState==STAMENU2)
+              {
+                CurrentState=STAMENU3;
+                DisplayMenu3();
+              }
+              
+              break;
+            } 
+             case KEYSTAR:// Neu bam phim sao
+            {
+              if(CurrentState==STAUNLOCK)
+              {
+               LockGate();
+               Beep(2);
+               CurrentState=STAMAIN;
+               ResetInput();  // xoa du lieu da nhap
+               DisplayMain();
+              }
+              else if(CurrentState==STAINPUTPASS||CurrentState==STAMENU1||CurrentState==STAMENU2||CurrentState==STAMENU3||CurrentState==STAINPUTADMIN||CurrentState==STAINPUTRFIDADMIN||CurrentState==STAADDRFID1||CurrentState==STAADDRFID2)
+              {
+               ResetInput();  // xoa du lieu da nhap
+               CurrentState=STAMAIN;
+               DisplayMain();
+              }
+              else if(CurrentState==STACHANGEPASS1||CurrentState==STACHANGEPASS2)
+              {
+               Beep(2);
+               CurrentState=STAMAIN;
+               ResetInput();  // xoa du lieu da nhap
+               DisplayMain();
+              }
+              break;
+            } 
+            
+        }   
+      }
+       
+   }
+}
+  
+  
+  
+

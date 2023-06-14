@@ -1,0 +1,142 @@
+004-005 @WRITE_PROGRAM_MEMORY8.P1
+004-005 @READ_PROGRAM_MEMORY8.P2
+008     PSP_DATA
+015     CCP_1_LOW
+015     CCP_1
+016     CCP_1_HIGH
+01B     CCP_2_LOW
+01B     CCP_2
+01C     CCP_2_HIGH
+020     rs232_errors
+021     CurrentState
+022     NextState
+023     CurrentKey
+024     CurrentCodeIndex
+025-02A CurrentPass
+02B-030 AdminPass
+031     WrongPassCount
+032     @TRIS_C
+033     MAIN.CheckPassResult
+034     MAIN.i
+035     ReadPassfromEEPROM.EEPROMData
+035     lcd_init.i
+035     Beep.BeepCount
+035     @DIV88.P1
+035     CheckPass.i
+035     @PSTRINGC7_645.@SCRATCH1
+035     MAIN.@SCRATCH1
+036     Beep.i
+036     @DIV88.P1
+036-039 lcd_init.LCD_INIT_STRING
+036     CheckPass.@SCRATCH1
+036     @PSTRINGC7_645.@SCRATCH2
+036     MAIN.@SCRATCH2
+037     @PSTRINGC7_645.@SCRATCH3
+037     @DIV88.@SCRATCH1
+038     lcd_putc.c
+038     @PSTRINGC7_645.@SCRATCH4
+039     lcd_gotoxy.x
+03A     lcd_gotoxy.y
+03A     @delay_ms1.P1
+03A     lcd_init.@SCRATCH1
+03B     lcd_gotoxy.address
+03C     lcd_gotoxy.@SCRATCH1
+03D     lcd_send_byte.address
+03E     lcd_send_byte.n
+03F     lcd_read_byte.low
+03F     lcd_send_byte.@SCRATCH1
+040     lcd_read_byte.high
+040     lcd_send_nibble.n
+041     lcd_read_nibble.n
+041     lcd_read_byte.@SCRATCH1
+042     lcd_read_nibble.@SCRATCH1
+077     @SCRATCH
+078     @SCRATCH
+078     _RETURN_
+079     @SCRATCH
+07A     @SCRATCH
+09C.6   C1OUT
+09C.7   C2OUT
+10D-10E @WRITE_PROGRAM_MEMORY8.P1
+10D-10E @READ_PROGRAM_MEMORY8.P2
+
+ROM Allocation:
+000004  @const686.call
+000005  @const688.call
+00000E  @const689.call
+000017  @const691.call
+000018  @const692.call
+00001F  @const694.call
+000020  @const695.call
+000027  @const701.call
+000030  @const702.call
+000039  @const706.call
+00003A  @const707.call
+000042  @const708.call
+00004B  @const709.call
+000054  @const710.call
+00005D  @const711.call
+000066  @const712.call
+000067  OffLedRed
+00006E  OffLedGreen
+000075  @delay_ms1
+000089  lcd_send_nibble
+0000B5  lcd_read_nibble
+0000E6  lcd_send_byte
+0000EE  lcd_read_byte
+000142  lcd_init
+000188  lcd_gotoxy
+00019A  lcd_putc
+0001C6  @PSTRINGC7_645
+00021C  DisplayMain
+000237  ResetInput
+000240  OffBuzzer
+000247  WritePassEEPROM
+0002DD  ReadPassfromEEPROM
+000328  ScanKeyboard
+00044D  DisplayInputPass
+000461  CheckPass
+00047C  OnLedRed
+000483  OnBuzzer
+00048A  @DIV88
+00049F  Beep
+0004AF  OnLedGreen
+0004B8  DisplayChangePass
+0004CC  @cinit1
+0004CC  MAIN
+0004E4  @cinit2
+0006E7  @goto11098
+
+Project Directory:
+    D:\Bussiness\Backend\Project\PIC16FF877A mo khoa mat khau\Main Code\
+
+Project Files:
+    Main.c                                                  [21-Apr-23 13:19  CRC=137DD57E]
+    main.h                                                  [28-Mar-23 20:17  CRC=00000000]
+    C:\Program Files (x86)\PICC\Devices\16F877A.h           [12-Nov-13 14:35  CRC=81334808]
+    C:\Program Files (x86)\PICC\Drivers\lcd.c               [19-Sep-13 15:38  CRC=D1A6378A]
+
+Source signature=37FD8C9A
+
+Units:
+    Main (main)
+
+Compiler Settings:
+    Processor:      PIC16F877A
+    Pointer Size:   16
+    ADC Range:      0-1023
+    Opt Level:      9
+    Short,Int,Long: UNSIGNED: 1,8,16
+    Float,Double:   32,32
+
+Output Files:
+    XREF file:   Main.xsym
+    Errors:      Main.err
+    Ext Symbols: Main.esym
+    INHX8:       Main.hex
+    Symbols:     Main.sym
+    List:        Main.lst
+    Debug/COFF:  Main.cof
+    Project:     Main.ccspjt
+    Call Tree:   Main.tre
+    Statistics:  Main.STA

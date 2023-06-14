@@ -1,0 +1,671 @@
+#define LCD_RS_PIN PIN_D0
+#define LCD_RW_PIN PIN_D1
+#define LCD_ENABLE_PIN PIN_D2
+#define LCD_DATA4 PIN_D7
+#define LCD_DATA5 PIN_D6
+#define LCD_DATA6 PIN_D5
+#define LCD_DATA7 PIN_D4
+
+// dinh nghia ten cac phim bam
+#define KEY0 0
+#define KEY1 1
+#define KEY2 2
+#define KEY3 3
+#define KEY4 4
+#define KEY5 5
+#define KEY6 6
+#define KEY7 7
+#define KEY8 8
+#define KEY9 9
+#define KEYSTAR 10
+#define KEYHASH 11
+#define NOKEY 12
+
+#define KC1 PIN_B2
+#define KC2 PIN_B1
+#define KC3 PIN_B0
+#define KR1 PIN_B4
+#define KR2 PIN_B5
+#define KR3 PIN_B6
+#define KR4 PIN_B7
+
+// khai bao dinh nghia cac trang thai mach
+#define STAMAIN 0
+#define STAINPUTPASS 1
+#define STAUNLOCK 2
+#define STACHANGEPASS 3
+#define STAMENU1 4
+#define STAADDRFID 5
+
+
+#include <main.h>
+#include <lcd.c>
+#use rs232(UART1,baud=9600,parity=N,bits=8,stream=UART_PORT,errors)
+
+int8 CurrentState=STAMAIN; // Bien luu trang thai cua mach hien tai
+int8 NextState=STAMAIN; // Bien luu trang thai cua mach tiep theo
+
+
+int8 CurrentKey; //bien luu gia tri phim bam
+int8 CurrentCodeIndex; //vi tri so hien tai
+int8 CurrentPass[6]; // bien luu ma hien tai
+
+int8 AdminPass[6]={1,2,3,4,5,6};
+char RFIDAdmin[10]={'a','b','c','d','e','f','g','h','i','k'};
+
+
+int8 WrongPassCount=0;
+int8 WrongRFIDCount=0;
+
+char UARTBuffer[70];
+int8 ByteCount=0;
+int8 RFIDResult=0; //=0 khong co the, =1 the hop le admin , =2 the khong hop le 
+
+
+void WritePassEEPROM()
+{
+    write_eeprom(0, AdminPass[0]);
+    write_eeprom(1, AdminPass[1]);
+    write_eeprom(2, AdminPass[2]);
+    write_eeprom(3, AdminPass[3]);
+    write_eeprom(4, AdminPass[4]);
+    write_eeprom(5, AdminPass[5]);
+}
+
+
+void WriteRFID()
+{
+ write_eeprom(15, RFIDAdmin[0]);
+ write_eeprom(16, RFIDAdmin[1]);
+ write_eeprom(17, RFIDAdmin[2]);
+ write_eeprom(18, RFIDAdmin[3]);
+ write_eeprom(19, RFIDAdmin[4]);
+ write_eeprom(20, RFIDAdmin[5]);
+ write_eeprom(21, RFIDAdmin[6]);
+ write_eeprom(22, RFIDAdmin[7]);
+ write_eeprom(23, RFIDAdmin[8]);
+ write_eeprom(24, RFIDAdmin[9]);
+
+}
+
+
+void ReadRFID()
+{
+  RFIDAdmin[0]=read_eeprom(15);
+  RFIDAdmin[1]=read_eeprom(16);
+  RFIDAdmin[2]=read_eeprom(17);
+  RFIDAdmin[3]=read_eeprom(18);
+  RFIDAdmin[4]=read_eeprom(19);
+  RFIDAdmin[5]=read_eeprom(20);
+  RFIDAdmin[6]=read_eeprom(21);
+  RFIDAdmin[7]=read_eeprom(22);
+  RFIDAdmin[8]=read_eeprom(23);
+  RFIDAdmin[9]=read_eeprom(24);
+  
+}
+
+
+void ReadPassfromEEPROM()
+{
+
+ int8 EEPROMData;
+ // doc pass phu 1
+ EEPROMData=read_eeprom(0);
+ if(EEPROMData==0xFF) // ROM trang khong co du lieu
+ {
+   WritePassEEPROM();// ghi gia tri mac dinh vao eeprom
+ }
+ else // neu rom co du lieu thi doc  ma mat ma luu vao mang
+ {
+
+    AdminPass[0]=read_eeprom(0);
+    AdminPass[1]=read_eeprom(1);
+    AdminPass[2]=read_eeprom(2);
+    AdminPass[3]=read_eeprom(3);
+    AdminPass[4]=read_eeprom(4);
+    AdminPass[5]=read_eeprom(5);
+ }
+
+ 
+}
+
+
+
+int8 ScanKeyboard(void)
+{
+ output_low(KC1);
+ if(!input(KR1)) 
+ { 
+  while(!input(KR1));
+  delay_ms(10);
+  return KEY1;
+ }
+ 
+ if(!input(KR2)) 
+  { 
+   while(!input(KR2));
+   delay_ms(10);
+   return KEY4;
+  }
+  
+ if(!input(KR3))
+ {
+  while(!input(KR3));
+  delay_ms(10);
+  return KEY7;
+ }
+ 
+ if(!input(KR4)) 
+  {
+  while(!input(KR4));
+  delay_ms(10);
+  return KEYSTAR;
+ }
+ 
+ output_high(KC1);
+ output_low(KC2);
+ 
+ if(!input(KR1)) 
+ { 
+  while(!input(KR1));
+  delay_ms(10);
+  return KEY2;
+ }
+ 
+ if(!input(KR2)) 
+  { 
+   while(!input(KR2));
+   delay_ms(10);
+   return KEY5;
+  }
+  
+ if(!input(KR3))
+ {
+  while(!input(KR3));
+  delay_ms(10);
+  return KEY8;
+ }
+ 
+ if(!input(KR4)) 
+  {
+  while(!input(KR4));
+  delay_ms(10);
+  return KEY0;
+ }
+ 
+ output_high(KC2);
+ output_low(KC3);
+ 
+ if(!input(KR1)) 
+ { 
+  while(!input(KR1));
+  delay_ms(10);
+  return KEY3;
+ }
+ 
+ if(!input(KR2)) 
+  { 
+   while(!input(KR2));
+   delay_ms(10);
+   return KEY6;
+  }
+  
+ if(!input(KR3))
+ {
+  while(!input(KR3));
+  delay_ms(10);
+  return KEY9;
+ }
+ 
+ if(!input(KR4)) 
+  {
+  while(!input(KR4));
+  delay_ms(10);
+  return KEYHASH;
+ }
+ 
+ output_high(KC3);
+ return NOKEY;
+
+}
+
+void OnBuzzer()
+{
+    output_high(PIN_C2);// Mo Loa
+}
+
+void OffBuzzer()
+{
+    output_Low(PIN_C2);// tat Loa
+}
+
+
+void Beep(int BeepCount) // phat tieng pip theo so lan
+{
+ int i;
+ for(i=0;i<BeepCount;i++)
+ {
+    OnBuzzer();
+    delay_ms(200);
+    OffBuzzer();  
+    delay_ms(200);
+ }
+}
+
+
+void LockGate()//khoa cua
+{
+   Output_low(PIN_C1);
+}
+
+void UnLockGate() // mo hoa
+{
+  Output_high(PIN_C1);
+}
+
+int8 CheckPass() // ham kiem tra mat ma, ket qua tra ve 0 - mat ma sai, tra ve 1 mat ma dung
+{
+ 
+  int i;
+  for(i=0;i<6;i++) // kiem tra pass add min
+  {
+   if(CurrentPass[i]!=AdminPass[i]) // neu phat hien 1 mat ma sai thi thoat vong lam
+   {
+     return 0;
+   }
+  }
+
+  return 1;
+
+  
+}
+
+void ResetInput() // ham reset du lieu dang nhap
+{
+  CurrentCodeIndex=0;
+  CurrentPass[0]=0xFF;
+  CurrentPass[1]=0xFF;
+  CurrentPass[2]=0xFF;
+  CurrentPass[3]=0xFF;
+  CurrentPass[4]=0xFF;
+  CurrentPass[5]=0xFF;
+}
+
+void DisplayMain()
+{
+   lcd_putc("\f");
+   lcd_putc("KHOA MAT MA-RFID");  
+   lcd_gotoxy(1, 2);
+   lcd_putc(" BAM # vao Menu ");
+}
+
+void DisplayInputPass()
+{
+   lcd_putc("\f");
+   lcd_putc("  NHAP MAT MA");  
+   lcd_gotoxy(1, 2);
+
+}
+
+
+void DisplayMenu1()
+{
+   lcd_putc("\f");
+   lcd_putc("1.DOI PASS");  
+   lcd_gotoxy(1, 2);
+   lcd_putc("2.DOI THE RFID"); 
+}
+
+
+void DisplayChangePass()
+{
+   lcd_putc("\f");
+   lcd_putc("NHAP PASS MOI");  
+   lcd_gotoxy(1, 2);
+}
+
+
+void DisplayAddRFID()
+{
+   lcd_putc("\f");
+   lcd_putc("CHAM THE RFID MOI");  
+   lcd_gotoxy(1, 2);
+}
+
+void ClearUARTBuffer()
+{
+   ByteCount=0;
+}
+
+
+void ProcessRFID()
+{
+  int8 i;
+  
+  RFIDResult=1; // gia su la the dung
+  for(i=1;i<11;i++)
+  {
+    if(UARTBuffer[i]!=RFIDAdmin[i-1])  // neu kiem tra khong dung 1 ky tu thi set the khong dung
+    {
+      RFIDResult=2; // the khong hop le
+    }
+  }
+  
+  delay_ms(100);
+  ClearUARTBuffer();
+ 
+}
+
+
+
+
+
+#INT_RDA
+void  RDA_isr(void) 
+{
+  char c = getc();
+  UARTBuffer[ByteCount]=c;
+  ByteCount++;
+   if(ByteCount==13)
+    {
+      ByteCount=0;
+      ProcessRFID();
+    }
+    else if(ByteCount>69)
+    {
+      ByteCount=0;
+    }
+}
+
+
+void main()
+{
+
+   int8 CheckPassResult;
+   
+   SET_TRIS_D(0x00);
+   SET_TRIS_C(0x80); // uart 
+   Set_tris_B(0xF0);// cai dat port B 0-3 output, 4-7 input
+   port_B_pullups(0xFF);   
+   output_high(KC1);// dua dua cac chan cot phim len cao
+   output_high(KC2);
+   output_high(KC3);
+   enable_interrupts(INT_RDA);
+   enable_interrupts(GLOBAL);
+   
+   lcd_init(); // khoi tao LCD
+   DisplayMain();
+   ResetInput();                   
+   OffBuzzer();
+   LockGate();
+   ReadPassfromEEPROM();
+   ReadRFID();
+   CurrentState=STAMAIN;
+   RFIDResult=0;
+   
+   while(true)
+   {
+      if(WrongPassCount>=3||WrongRFIDCount>=3)
+      {
+       OnBuzzer();  // bat coi keu lien tuc khi nhap sai qua 3 lan
+      }
+      
+      // phan kiem tra the tu
+      if(RFIDResult!=0) // neu co the tu duoc cham thi UART tu ngat và RFIDResult se cap nhat ket qua
+      {
+       if(CurrentState==STAMAIN) // neu dang o che do cho  co the cham vao
+       {
+           if(RFIDResult==1) // co the admin hoac the phu cham vao thi mo khoa
+           {
+              WrongRFIDCount=0; // xoa so lan sai
+              lcd_gotoxy(1, 2);
+              lcd_putc("  XIN MOI VAO!  ");
+              UnLockGate();
+              Beep(1); // beep loa 1 tieng
+              delay_ms(1000);
+              CurrentState=STAUNLOCK; 
+           }
+           else
+           {
+              
+              lcd_gotoxy(1, 2);
+              lcd_putc("THE KHONG HOP LE");
+              Beep(3); // beep loa 3 tieng
+              if(WrongRFIDCount<3) WrongRFIDCount++;
+              if(WrongRFIDCount==3)
+              {
+               lcd_gotoxy(1, 2);
+               lcd_putc("  BAO DONG!!    ");
+              }
+              delay_ms(1000);
+              DisplayMain();
+           }
+       }
+       else if(CurrentState==STAADDRFID) // dang them the 
+       {
+          lcd_gotoxy(1, 2);
+          lcd_putc("DA THEM THE RFID");
+          Beep(1); // beep loa 1 tieng
+          RFIDAdmin[0]=UARTBuffer[1];
+          RFIDAdmin[1]=UARTBuffer[2];
+          RFIDAdmin[2]=UARTBuffer[3];
+          RFIDAdmin[3]=UARTBuffer[4];
+          RFIDAdmin[4]=UARTBuffer[5];
+          RFIDAdmin[5]=UARTBuffer[6];
+          RFIDAdmin[6]=UARTBuffer[7];
+          RFIDAdmin[7]=UARTBuffer[8];
+          RFIDAdmin[8]=UARTBuffer[9];
+          RFIDAdmin[9]=UARTBuffer[10];
+          WriteRFID();
+          delay_ms(1000);
+          CurrentState=STAMAIN;
+          DisplayMain();
+       }
+    
+       RFIDResult=0; // sau khi xu ly thong tin RFID thi reset bien de cho the tiep theo
+      }
+      
+      
+      
+      // phan kim tra phim bam va mat ma
+      CurrentKey=Scankeyboard(); // doc ban phim
+      if(CurrentKey!=NOKEY) // neu phim tra ve khac NOKEY ( tuc la co bam phim)
+      {
+        switch(CurrentKey) // kiem tra xem la phim gi
+        {
+            case KEY0: // Neu la ca phim so
+            case KEY1:
+            case KEY2:
+            case KEY3:
+            case KEY4:
+            case KEY5:
+            case KEY6:
+            case KEY7:
+            case KEY8:
+            case KEY9:
+            {
+               if(CurrentState==STAMAIN) // neu dang o che do cho hoac che do nhap pass thi cho phep nhap
+               {
+                 
+                 CurrentState=STAINPUTPASS; // cai trang tahi hien tai la nhap pass
+                 NextState=STAUNLOCK;
+                 DisplayInputPass();
+                 
+               }
+               else if(CurrentState==STAINPUTPASS||CurrentState==STACHANGEPASS)
+               {
+                 if(CurrentCodeIndex<6) //neu nhap chua du 6 ky tu
+                 {
+                    CurrentPass[CurrentCodeIndex]=CurrentKey; // luu so vua bam vao mang
+                    lcd_putc('*'); // hien thi dau sao cho phim da bam
+                    CurrentCodeIndex++;// chuyen sang vi tri tiep theo
+                 }
+               }
+               else if(CurrentState==STAMENU1&&CurrentKey==KEY1)
+               {
+                 CurrentState=STAINPUTPASS; // cai trang tahi hien tai la nhap pass
+                 NextState=STACHANGEPASS;
+                 DisplayInputPass();
+               }
+                else if(CurrentState==STAMENU1&&CurrentKey==KEY2)
+               {
+                   CurrentState=STAINPUTPASS; // cai trang tahi hien tai la nhap pass
+                   NextState=STAADDRFID;
+                   DisplayInputPass();
+                   
+               }
+            
+               break;
+            }
+            
+            case KEYHASH:// Neu bam phim thang
+            {
+              if(CurrentState==STAMAIN) // neu dang nhap pass de mo
+              {
+               CurrentState=STAMENU1;
+               DisplayMenu1();
+              }
+              else if(CurrentState==STAINPUTPASS&&NextState==STAUNLOCK) // neu dang nhap pass de mo
+              {
+                CheckPassResult=CheckPass(); // kiem tra mat ma nhap vao
+                if(CheckPassResult==0) //neu sai pass thi thong bao
+                {
+                   lcd_gotoxy(1, 2);
+                   lcd_putc("   SAI MAT MA!  ");
+                   Beep(3); // beep loa 3 tieng
+                   delay_ms(1000);
+                   ResetInput();  // xoa du lieu da nhap
+                   DisplayInputPass();
+                   if(WrongPassCount<3) WrongPassCount++;
+                   if(WrongPassCount==3)
+                   {
+                    lcd_gotoxy(1, 2);
+                    lcd_putc("  BAO DONG!!    ");
+                    delay_ms(1000);
+                    DisplayInputPass();
+                   }
+                }
+                else
+                {
+                   WrongPassCount=0; // xoa so lan sai
+                   WrongRFIDCount=0; // xoa so lan sai
+                   lcd_gotoxy(1, 2);
+                   lcd_putc("  XIN MOI VAO!  ");
+                   UnLockGate();
+                   Beep(1); // beep loa 1 tieng
+                   delay_ms(1000);
+                   ResetInput();  // xoa du lieu da nhap
+                   CurrentState=STAUNLOCK; 
+                }
+              }
+              else if(CurrentState==STAINPUTPASS&&NextState==STACHANGEPASS)
+              {
+                   CheckPassResult=CheckPass(); // kiem tra mat ma nhap vao
+                   if(CheckPassResult==1) //neu nhap dung pass addmin
+                   {
+                      DisplayChangePass();
+                      Beep(1); // beep loa 1 tieng
+                      ResetInput();  // xoa du lieu da nhap
+                      CurrentState=STACHANGEPASS; // tro ve man hinh change pass
+                   }
+                   else
+                   {
+            
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("   SAI MAT MA!  ");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayInputPass();
+                   }  
+              
+              }
+              else if(CurrentState==STAINPUTPASS&&NextState==STAADDRFID)
+              {
+                   CheckPassResult=CheckPass(); // kiem tra mat ma nhap vao
+                   if(CheckPassResult==1) //neu nhap dung pass addmin
+                   {
+                      DisplayAddRFID();
+                      Beep(1); // beep loa 1 tieng
+                      ResetInput();  // xoa du lieu da nhap
+                      CurrentState=STAADDRFID; // tro ve man hinh them the
+                   }
+                   else
+                   {
+            
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("   SAI MAT MA!  ");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayInputPass();
+                   }  
+              
+              }
+              else if(CurrentState==STACHANGEPASS)
+              {
+                 if(CurrentCodeIndex<6) //neu nhap chua du 6 ky tu
+                 {
+                      lcd_gotoxy(1, 2);
+                      lcd_putc("CHUA DU 6 KY TU!");
+                      Beep(3); // beep loa 3 tieng
+                      delay_ms(1000);
+                      ResetInput();  // xoa du lieu da nhap
+                      DisplayChangePass();
+                 }
+                 else
+                 {
+                     AdminPass[0]=CurrentPass[0];
+                     AdminPass[1]=CurrentPass[1];
+                     AdminPass[2]=CurrentPass[2];
+                     AdminPass[3]=CurrentPass[3];
+                     AdminPass[4]=CurrentPass[4];
+                     AdminPass[5]=CurrentPass[5];
+                     WritePassEEPROM();
+                     lcd_gotoxy(1, 2);
+                     lcd_putc(" DA LUU MA MOI! ");
+                     Beep(2);
+                     delay_ms(1000);
+                     CurrentState=STAMAIN;
+                     ResetInput();  // xoa du lieu da nhap
+                     DisplayMain();
+                 }
+              }
+             
+              break;
+            } 
+             case KEYSTAR:// Neu bam phim sao
+            {
+              if(CurrentState==STAUNLOCK)
+              {
+               LockGate();
+               Beep(2);
+               CurrentState=STAMAIN;
+               ResetInput();  // xoa du lieu da nhap
+               DisplayMain();
+              }
+              else if(CurrentState==STAINPUTPASS||CurrentState==STAMENU1||CurrentState==STAADDRFID)
+              {
+               ResetInput();  // xoa du lieu da nhap
+               CurrentState=STAMAIN;
+               DisplayMain();
+              }
+              else if(CurrentState==STACHANGEPASS)
+              {
+               Beep(2);
+               CurrentState=STAMAIN;
+               ResetInput();  // xoa du lieu da nhap
+               DisplayMain();
+              }
+              break;
+            } 
+            
+        }   
+      }
+    
+   }
+}
+  
+  
+  
+
